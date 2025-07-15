@@ -20,3 +20,15 @@ class StatusFilter(Filter):
 
         current_status = status_data.get(user_id, "")
         return current_status.startswith(self.status_prefix)
+
+class NoStatusFilter(Filter):
+    async def __call__(self, client, message):
+        user_id = str(message.from_user.id)
+
+        try:
+            with open(status_user_file, "r") as f:
+                status_data = json.load(f)
+        except:
+            return True  # file nahi mili = status bhi nahi
+
+        return not status_data.get(user_id, "")  # status blank ya none ho
