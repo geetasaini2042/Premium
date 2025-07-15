@@ -15,7 +15,7 @@ import os
 ##Imports#From Pyrogran 
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton,Message,InputMediaPhoto, CallbackQuery,WebAppInfo
 from pyrogram import Client, filters
-
+from filters.status_filters import StatusFilter,NoStatusFilter
 from common_data  import BOT_TOKEN
 from app_script import SEARCH_URL,send_telegram_message
 from script import app,flask_app,upload_users
@@ -34,8 +34,8 @@ def not_a_command(_, __, message):
     & ~filters.group
     & ~filters.regex(r"^🚫CANCEL$")
     & filters.create(not_a_command)
+    & no_status_filter  # 👈 यही line जोड़ा गया है
 )
-
 async def process_text_messages(client: Client, message: Message):
        msg = await message.reply_text("Please Wait...")
        time.sleep(5)
