@@ -237,8 +237,3 @@ def send_file():
         print("❌ Main exception in send_file():")
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
-@flask_app.route("/")
-def home():
-    upload_users()
-    return "Flask server is running."
-
