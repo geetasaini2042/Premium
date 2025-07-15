@@ -34,7 +34,7 @@ def not_a_command(_, __, message):
     & ~filters.group
     & ~filters.regex(r"^🚫CANCEL$")
     & filters.create(not_a_command)
-    & no_status_filter  # 👈 यही line जोड़ा गया है
+    & NoStatusFilter()  # 👈 यही line जोड़ा गया है
 )
 async def process_text_messages(client: Client, message: Message):
        msg = await message.reply_text("Please Wait...")
@@ -97,7 +97,7 @@ async def search_and_send_inline(msg, search_query, page=1):
         buttons.append(nav_buttons)
 
     await msg.edit(
-        f"Here is your Search Result For : \n{search_query} \n\n Please Choose An App:\n",
+        f"**Here is your Search Result For :** \n`{search_query}`",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
