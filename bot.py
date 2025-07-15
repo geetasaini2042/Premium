@@ -1,8 +1,9 @@
 import json
+import premium 
 import os
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-from script import app, run_flask, run_bot,is_user_subscribed_requests
+from script import app, run_flask, run_bot
 import threading
 from common_data import data_file,data_file1, users_file, status_user_file, temp_folder_file,temp_url_file,temp_webapp_file,temp_file_json, DEFAULT_JSON,OWNER,ADMINS
 import json
@@ -36,7 +37,8 @@ def save_user(user_id: int):
             json.dump(users, f)
 
 def escape_markdown(text: str) -> str:
-    return text
+    escape_chars = r"\_*[]()~`>#+-=|{}.!"
+    return "".join("\\" + c if c in escape_chars else c for c in text)
 
 def get_root_inline_keyboard(user_id: int):
     try:
@@ -129,33 +131,7 @@ async def start_handler(client, message: Message):
     user = message.from_user
     user_id = user.id
     save_user(user_id)
-    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    from common_data import REQUIRED_CHANNELS
 
-    if not is_user_subscribed_requests(user_id):
-        buttons = []
-
-        for channel in REQUIRED_CHANNELS.split(","):
-            channel = channel.strip()
-            if not channel:
-                continue
-
-            if channel.startswith("@"):
-                link = f"https://t.me/{channel[1:]}"
-            elif channel.startswith("-100"):
-                link = f"https://t.me/c/{channel[4:]}"
-            elif channel.startswith("https://t.me/"):
-                link = channel
-            else:
-                link = f"https://t.me/{channel}"
-
-            buttons.append([InlineKeyboardButton("📢 Join Channel", url=link)])
-
-        await message.reply_text(
-            "📢Please Join Below Channels and send /start again\n📢 कृपया नीचे दिए गए चैनल्स को जॉइन करें फिर /start भेजें:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-        return
     try :
        with open(data_file, "r") as f:
            bot_data = json.load(f)
@@ -185,31 +161,7 @@ async def start_handler(client, message: Message):
 @app.on_message(filters.private & filters.command("restart"))
 async def handle_restart(client, message):
     user_id = str(message.from_user.id)
-    from common_data import is_user_subscribed_requests, REQUIRED_CHANNELS
-    if not is_user_subscribed_requests(user_id):
-        buttons = []
 
-        for channel in REQUIRED_CHANNELS.split(","):
-            channel = channel.strip()
-            if not channel:
-                continue
-
-            if channel.startswith("@"):
-                link = f"https://t.me/{channel[1:]}"
-            elif channel.startswith("-100"):
-                link = f"https://t.me/c/{channel[4:]}"
-            elif channel.startswith("https://t.me/"):
-                link = channel
-            else:
-                link = f"https://t.me/{channel}"
-
-            buttons.append([InlineKeyboardButton("📢 Join Channel", url=link)])
-
-        await message.reply_text(
-            "📢 कृपया नीचे दिए गए सभी चैनल्स को जॉइन करें फिर /start भेजें:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-        return
     files_to_clean = [
         status_user_file,
         temp_file_json,
@@ -229,7 +181,8 @@ async def handle_restart(client, message):
             data.pop(user_id, None)
             with open(file_path, "w") as f:
                 json.dump(data, f, indent=2)
-
+    user = message.from_user
+    user_id = user.id
     await message.reply("🔄 Your session has been reset. You can start fresh now.",reply_markup=get_root_inline_keyboard(user_id))
 
 import admins
