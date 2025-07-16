@@ -23,58 +23,101 @@ temp_data = {}
 saveii = {}
 #Main Functions Started
 from flask import Flask, request, jsonify
-
-
-
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 import re
+CHECK_CHANNEL_ID = int(os.getenv("CHECK_CHANNEL_ID", "-1002536426442"))
+from urllib.parse import quote
 
-# Replace with your private channel ID
-CHECK_CHANNEL_ID = -1002536426442
+def clean_file_name(name: str) -> str:
+    name = re.sub(r'@\w+', '', name)                  # Remove all @usernames
+    name = re.sub(r'(?i)modded by', '', name)         # Remove 'modded by' case-insensitive
+    name = re.sub(r'\s+', ' ', name).strip()          # Clean extra spaces
+    return name
 
 @app.on_message(filters.command("start") & filters.regex(r"^/start\s+ID_\w+") & filters.private)
 async def handle_start_with_file_id(client: Client, message: Message):
     try:
-        # Extract file_id from the start parameter
+        # Extract file_id from parameter
         param_text = message.text.split(maxsplit=1)[1]
         match = re.match(r"ID_(\w+)", param_text)
 
         if not match:
-            await message.reply("Invalid link format!")
+            await message.reply("⚠️ Invalid link format. Please use a valid link.")
             return
 
         file_id = match.group(1)
 
-        # Try sending the file_id to the private channel to verify
+        # Try sending file to check validity
         try:
-            sent_msg = await client.copy_message(
+            sent_doc = await client.send_document(
                 chat_id=CHECK_CHANNEL_ID,
-                from_chat_id=CHECK_CHANNEL_ID,
-                message_id=int(file_id)
+                document=file_id,
+                caption="🔍 Validating file..."
             )
+
+            doc = sent_doc.document
+            original_file_name = doc.file_name or "Unknown"
+            cleaned_file_name = clean_file_name(original_file_name)
+            file_size = round(doc.file_size / (1024 * 1024), 2)  # in MB
+            mime_type = doc.mime_type or "N/A"
+
         except Exception as e:
-            await message.reply("Invalid or expired file. Please try again later.")
+            await message.reply("❌ The file link seems to be invalid or expired.")
             print(f"File check failed: {e}")
             return
 
-        # If valid, send the webapp button
-        link123 = f"https://geetasaini2042.github.io/17uio/APPS/NewVersion/index.html?file_id={file_id}&file_name=This"
+        # User Info
+        user = message.from_user
+        user_details = f"""
+📥 *New File Accessed!*
+
+👤 *User Details:*
+• ID: `{user.id}`
+• Name: {user.first_name} {user.last_name or ""}
+• Username: @{user.username or 'N/A'}
+• Language: {user.language_code or 'N/A'}
+
+📄 *File Info:*
+• Name: `{original_file_name}`
+• Cleaned: `{cleaned_file_name}`
+• Type: `{mime_type}`
+• Size: `{file_size} MB`
+• File ID: `{file_id}`
+""".strip()
+
+        # Edit caption in check channel
+        try:
+            await sent_doc.edit_caption(user_details)
+        except Exception as e:
+            print("Caption edit failed:", e)
+
+        # WebApp button
+        encoded_file_name = quote(cleaned_file_name)
+        link123 = f"https://geetasaini2042.github.io/17uio/APPS/NewVersion/index.html?file_id={file_id}&file_size={file_size}&file_name={encoded_file_name}"
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton("Click here to Get Your App", web_app=WebAppInfo(url=link123))]
+                [InlineKeyboardButton("📲 Get Your App Now", web_app=WebAppInfo(url=link123))]
             ]
         )
 
+        # Message to user
+        response_text = f"""
+✅ *Your file is ready!*
+
+• **App Name:** `{cleaned_file_name}`
+• ** Size: ** `{file_size} MB`
+Click the button below to open the app 👇
+"""
+
         await message.reply(
-            "Here is your file.\n\nPlease click the button below 👇👇",
+            response_text,
             reply_markup=keyboard
         )
 
     except Exception as e:
-        await message.reply("Something went wrong while processing your request.")
+        await message.reply("🚫 An unexpected error occurred. Please try again.")
         print(f"Unexpected error: {e}")
-
 def not_a_command(_, __, message):
     return not message.text.startswith("/")
 
@@ -154,25 +197,74 @@ async def search_and_send_inline(msg, search_query, page=1):
     return temp_data  # Short IDs को बाद में एक्सेस करने के लिए रिटर्न करें
 
 
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+import re
+
+
 async def search_and_send_app(client, msg, file_id):
     try:
-        link123 = f"https://geetasaini2042.github.io/17uio/APPS/NewVersion/index.html?file_id={file_id}&file_name=This"
-        keyboard = InlineKeyboardMarkup(
-          inline_keyboard=[
-            [InlineKeyboardButton("Click here to Get Your App", web_app=WebAppInfo(url=link123))]
-        ]
-    )
-        await msg.edit_text("Here is Your File.\n\n Please Click on the Below Button 👇👇",reply_markup=keyboard )
-      #  await msg.reply_text(link123,reply_markup=keyboard )
-    except Exception as e:
-        await msg.edit("Failed to send the file.")
-        print(f"Error: {e}")
+        # Try sending the document to check if file_id is valid
+        try:
+            sent_doc = await client.send_document(
+                chat_id=CHECK_CHANNEL_ID,
+                document=file_id,
+                caption="🔍 Validating file..."
+            )
+            doc = sent_doc.document
+            original_file_name = doc.file_name or "Unknown"
+            cleaned_file_name = clean_file_name(original_file_name)
+            file_size = round(doc.file_size / (1024 * 1024), 2)  # Convert to MB
+            mime_type = doc.mime_type or "N/A"
+        except Exception as e:
+            await msg.edit_text("❌ Invalid or expired file. Please try again later.")
+            print(f"File check failed: {e}")
+            return
 
+        # Edit the caption in the check channel with full file info
+        caption_text = f"""
+📥 **App Request Received!**
+
+📄 **File Info:**
+• Name: `{original_file_name}`
+• Cleaned: `{cleaned_file_name}`
+• Type: `{mime_type}`
+• Size: `{file_size} MB`
+• File ID: `{file_id}`
+""".strip()
+        try:
+            await sent_doc.edit_caption(caption_text)
+        except Exception as e:
+            print("Caption edit failed:", e)
+
+        # Create WebApp Button
+        encoded_file_name = quote(cleaned_file_name)
+        link123 = f"https://geetasaini2042.github.io/17uio/APPS/NewVersion/index.html?file_id={file_id}&file_size={file_size}&file_name={encoded_file_name}"
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("📲 Get Your App Now", web_app=WebAppInfo(url=link123))]
+            ]
+        )
+
+        # Send message to user
+        response_text = f"""
+✅ **Your app is ready!**
+
+📁 **File Name:** `{cleaned_file_name}`  
+📦 **Size:** `{file_size} MB`
+
+Tap the button below to open the app 👇
+""".strip()
+
+        await msg.edit_text(response_text, reply_markup=keyboard)
+
+    except Exception as e:
+        await msg.edit_text("🚫 Failed to send the file. Please Try again Later")
+        print(f"Error: {e}")
 def send_document(chat_id, file_id, caption="", protect_content=True, parse_mode="HTML"):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
     user_id = chat_id
-    print(saveii)
-    print(saveii[user_id])
+    #print(saveii)
+    #print(saveii[user_id])
     search_query = saveii[user_id]['search_query'] 
     page = saveii[user_id]['page']
     keyboard = {
@@ -252,6 +344,7 @@ def send_file():
 
         file_id = data.get("file_id", "")
         file_name = data.get("file_name", "")
+        file_size = data.get("file_size", "")
 
         if not file_id:
             print("❌ Missing file_id")
@@ -261,7 +354,14 @@ def send_file():
             res = send_document(
                 chat_id,
                 file_id,
-                caption="Enjoy This 😊😊",
+                caption=f"""📱 App Name: {file_name}
+📦 Size: {file_size} MB
+
+✅ 100% Safe & Tested
+🔁 Shared via Telegram Bot
+https://t.me/apps_premiumBot
+@HOW_TO_INSTALL_APP
+📲 Install and enjoy!""",
                 protect_content=True,
                 parse_mode="HTML"
             )
