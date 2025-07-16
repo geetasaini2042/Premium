@@ -25,6 +25,56 @@ saveii = {}
 from flask import Flask, request, jsonify
 
 
+
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+import re
+
+# Replace with your private channel ID
+CHECK_CHANNEL_ID = -1002536426442
+
+@app.on_message(filters.command("start") & filters.regex(r"^/start\s+ID_\w+") & filters.private)
+async def handle_start_with_file_id(client: Client, message: Message):
+    try:
+        # Extract file_id from the start parameter
+        param_text = message.text.split(maxsplit=1)[1]
+        match = re.match(r"ID_(\w+)", param_text)
+
+        if not match:
+            await message.reply("Invalid link format!")
+            return
+
+        file_id = match.group(1)
+
+        # Try sending the file_id to the private channel to verify
+        try:
+            sent_msg = await client.copy_message(
+                chat_id=CHECK_CHANNEL_ID,
+                from_chat_id=CHECK_CHANNEL_ID,
+                message_id=int(file_id)
+            )
+        except Exception as e:
+            await message.reply("Invalid or expired file. Please try again later.")
+            print(f"File check failed: {e}")
+            return
+
+        # If valid, send the webapp button
+        link123 = f"https://geetasaini2042.github.io/17uio/APPS/NewVersion/index.html?file_id={file_id}&file_name=This"
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Click here to Get Your App", web_app=WebAppInfo(url=link123))]
+            ]
+        )
+
+        await message.reply(
+            "Here is your file.\n\nPlease click the button below 👇👇",
+            reply_markup=keyboard
+        )
+
+    except Exception as e:
+        await message.reply("Something went wrong while processing your request.")
+        print(f"Unexpected error: {e}")
+
 def not_a_command(_, __, message):
     return not message.text.startswith("/")
 
