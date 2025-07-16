@@ -156,8 +156,10 @@ async def start_handler(client, message: Message):
 
     welcome_text = template
     markup = get_root_inline_keyboard(user_id)
-
-    await message.reply_text(welcome_text, reply_markup=markup)
+    try:
+        await message.reply_text(welcome_text, reply_markup=markup)
+    except:
+        await message.reply_text(welcome_text)
 @app.on_message(filters.private & filters.command("restart"))
 async def handle_restart(client, message):
     user_id = str(message.from_user.id)
@@ -183,7 +185,10 @@ async def handle_restart(client, message):
                 json.dump(data, f, indent=2)
     user = message.from_user
     user_id = user.id
-    await message.reply("🔄 Your session has been reset. You can start fresh now.",reply_markup=get_root_inline_keyboard(user_id))
+    try:
+        await message.reply("🔄 Your session has been reset. You can start fresh now.",reply_markup=get_root_inline_keyboard(user_id))
+    except:
+        await message.reply("🔄 Your session has been reset. You can /start fresh now.")
 
 import admins
 def load_commands_data():
