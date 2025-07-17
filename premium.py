@@ -592,6 +592,7 @@ def send_file():
         file_id = data.get("file_id", "")
         file_name = data.get("file_name", "")
         file_size = data.get("file_size", "")
+        uniq_id = data.get("uniq_id", "")
 
         if not file_id:
             print("❌ Missing file_id")
@@ -600,6 +601,7 @@ def send_file():
         try:
             res = send_document(
                 chat_id,
+                uniq_id,
                 file_id,
                 caption=f"""📱 App Name: {file_name}
 📦 Size: {file_size} MB
