@@ -18,6 +18,8 @@ temp_webapp_file = os.path.join(BASE_PATH, "tempwebapp.json")
 temp_file_json = os.path.join(BASE_PATH, "tempfile.json")
 users_file = os.path.join(BASE_PATH, "users.json")
 ADMINS_FILE = os.path.join(BASE_PATH, "ADMINS.json")
+APP_DATA_FILE = os.path.join(BASE_PATH, "App_data.json")
+
 try:
     with open(ADMINS_FILE, "r") as f:
         ADMINS = json.load(f)
