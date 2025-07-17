@@ -1,5 +1,5 @@
 import json
-import premium 
+from premium import check_and_send_restart
 import os
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -131,6 +131,7 @@ async def start_handler(client, message: Message):
     user = message.from_user
     user_id = user.id
     save_user(user_id)
+    check_and_send_restart()
 
     try :
        with open(data_file, "r") as f:
@@ -163,6 +164,7 @@ async def start_handler(client, message: Message):
 @app.on_message(filters.private & filters.command("restart"))
 async def handle_restart(client, message):
     user_id = str(message.from_user.id)
+    check_and_send_restart()
 
     files_to_clean = [
         status_user_file,

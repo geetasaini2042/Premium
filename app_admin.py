@@ -12,8 +12,12 @@ from app_script import FILE_CHANNEL_ID,admin_app_details,admins
 from script import app
 from pyrogram import Client, filters
 from filters.status_filters import StatusFilter
-from common_data import status_user_file
-
+from common_data import status_user_file,MD_URI,APP_DATA_FILE
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 def set_user_status(user_id: int, status: str):
     try:
@@ -232,29 +236,115 @@ Now send me the **LAST message link**...
         delete_user_1status(user_id)
 
 
+import json
+import string
+import random
+from pymongo import MongoClient
+from threading import Lock
 
-async def send_data(file_id, file_name):
-    data = {
-        "file_id": file_id,
-        "file_name": file_name
-    }
-    headers = {"Content-Type": "application/json"}
-    
+
+
+# Lock for file safety
+file_lock = Lock()
+
+# If file doesn't exist, create it with empty list
+def sync_json_from_mongo():
+    client = MongoClient(MD_URI)
+    db = client["bot_database"]
+    collection = db["app_data"]
     try:
-        response = requests.post(API_URL, headers=headers, data=json.dumps(data))
-        response_json = response.json()  # API का JSON रिस्पॉन्स
-        
-        if response.status_code == 200 and response_json.get("success") is True:
-            print(f"Sent: {file_name} - OK")
-            return "OK"
-        else:
-            print(f"Sent: {file_name} - ER")
-            return "ER"
+        with file_lock:  # 🔐 JSON file write के दौरान lock लगाएं
+            all_data = list(collection.find({}, {'_id': 0}))  # MongoDB से सब data (बिना _id)
+
+            if not all_data:
+                all_data = []  # अगर DB खाली हो
+
+            with open(APP_DATA_FILE, 'w') as f:
+                json.dump(all_data, f, indent=2)
+
+        logging.info(f"✅ JSON file synced from MongoDB: {len(all_data)} items")
 
     except Exception as e:
-        print(f"Error sending {file_name}: {e}")
-        return "ER"
+        logging.warning(f"❌ Failed to sync JSON from MongoDB: {e}")
 
+import json, os, logging
+from pymongo import MongoClient
+from datetime import datetime
+import threading
+
+file_lock = threading.Lock()
+
+
+is_termux = os.getenv("is_termux", "false").lower() == "true"
+
+
+async def send_data(file_id, file_name):
+    uniq_id = generate_unique_id()
+    data = {
+        "file_id": file_id,
+        "file_name": file_name,
+        "uniq_id": uniq_id,
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+
+    json_saved = False
+    mongo_saved = False
+
+    # ✅ 1. Save to JSON
+    try:
+        with file_lock:
+            try:
+                with open(APP_DATA_FILE, 'r') as f:
+                    all_data = json.load(f)
+            except Exception:
+                all_data = []
+
+            all_data.append(data)
+            with open(APP_DATA_FILE, 'w') as f:
+                json.dump(all_data, f, indent=2)
+
+            json_saved = True
+    except Exception as e:
+        logging.warning(f"❌ JSON save failed: {e}")
+
+    # ✅ 2. Save to MongoDB
+    if not is_termux:
+        try:
+            client = MongoClient(MD_URI)
+            db = client["bot_database"]
+            collection = db["app_data"]
+            collection.insert_one(data)
+            mongo_saved = True
+        except Exception as e:
+            logging.warning(f"❌ MongoDB insert failed: {e}")
+    else:
+        mongo_saved = True  # Allow local only if on Termux
+
+    # ✅ 3. Final Check
+    if json_saved and mongo_saved:
+        logging.info(f"✅ Saved OK: {file_name} | ID: {uniq_id}")
+        return "OK"
+    else:
+        logging.warning(f"⚠️ Save failed: {file_name} | ID: {uniq_id}")
+        return "ER"
+def generate_unique_id(length=12):
+    chars = string.ascii_letters + string.digits
+    
+    with file_lock:
+        try:
+            with open(APP_DATA_FILE, 'r') as f:
+                all_data = json.load(f)
+                existing_ids = {entry.get("uniq_id") for entry in all_data}
+        except Exception:
+            existing_ids = set()
+
+    while True:
+        uid = ''.join(random.choices(chars, k=length))
+        if uid not in existing_ids:
+            return uid
+            
+         
+      
 async def fetch_and_save_files(client, user_id, message):
     try:
         details = admin_app_details.get(user_id, {})  

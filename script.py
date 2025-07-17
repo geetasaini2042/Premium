@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 flask_app = Flask(__name__)
 
-
+from threading import Lock
 @flask_app.route("/get-file/<path:filename>")
 def get_json_file(filename):
     # Ensure file ends with .json
@@ -217,6 +217,7 @@ def run_bot():
     if not is_termux:
         save_mongodb_users_to_file()
         save_mongodb_data_to_file()
+        sync_json_from_mongo()
     app.run()
     if not is_termux:
       requests.post(DEPLOY_URL)
@@ -265,3 +266,26 @@ def is_user_action_allowed(folder_id, action):
         return False
 
     return action in folder.get("user_allow", [])
+
+# Lock for file safety
+file_lock = Lock()
+
+# If file doesn't exist, create it with empty list
+def sync_json_from_mongo():
+    client = MongoClient(MD_URI)
+    db = client["bot_database"]
+    collection = db["app_data"]
+    try:
+        with file_lock:  # 🔐 JSON file write के दौरान lock लगाएं
+            all_data = list(collection.find({}, {'_id': 0}))  # MongoDB से सब data (बिना _id)
+
+            if not all_data:
+                all_data = []  # अगर DB खाली हो
+
+            with open(APP_DATA_FILE, 'w') as f:
+                json.dump(all_data, f, indent=2)
+
+        logging.info(f"✅ JSON file synced from MongoDB: {len(all_data)} items")
+
+    except Exception as e:
+        logging.warning(f"❌ Failed to sync JSON from MongoDB: {e}")
