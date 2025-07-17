@@ -237,13 +237,11 @@ def not_a_command(_, __, message):
     & ~filters.group
     & ~filters.regex(r"^🚫CANCEL$")
     & filters.create(not_a_command)
-    & NoStatusFilter()  # 👈 यही line जोड़ा गया है
+    & filters.create(lambda _, __, msg: len(msg.text.strip().encode("utf-8")) <= 55)
+    & NoStatusFilter()
 )
 async def process_text_messages(client: Client, message: Message):
-      # time.sleep(2)
-       msg = await message.reply_text("Please Wait...")
-       time.sleep(2)
-       await msg.edit_text("Searching app...")
+       msg = await message.reply_text("Searching app...")
        user_id = message.from_user.id
        user_msg = message.text
        user_name = message.from_user.first_name
@@ -309,7 +307,7 @@ def search_apps_from_json(query):
         results.append((tier, -score, file_name.lower(), app))  # Negative score for descending sort
 
     # Sort by tier asc, then score desc, then name asc
-    results.sort()
+    results.sort(key=lambda x: (x[0], x[1], x[2]))
 
     # Return top 50 apps only
     return [item[3] for item in results[:50]]
