@@ -43,6 +43,7 @@ def clean_file_name(name: str) -> str:
     name = re.sub(r'@\w+', '', name)                  # Remove all @usernames
     name = re.sub(r'(?i)modded by', '', name)         # Remove 'modded by' case-insensitive
     name = re.sub(r'\s+', ' ', name).strip()          # Clean extra spaces
+    name = re.sub(r'(?i)Getmodpc', ' ', name).strip()
     return name
 
 
@@ -99,15 +100,15 @@ async def handle_start_with_uniq_id(client: Client, message: Message):
         # 🧑‍💻 User Info
         user = message.from_user
         user_details = f"""
-📥 *New File Accessed!*
+📥 **New File Accessed!**
 
-👤 *User Details:*
+👤 **User Details:**
 • ID: `{user.id}`
 • Name: {user.first_name} {user.last_name or ""}
 • Username: @{user.username or 'N/A'}
 • Language: {user.language_code or 'N/A'}
 
-📄 *File Info:*
+📄 **File Info:**
 • Name: `{original_file_name}`
 • Cleaned: `{cleaned_file_name}`
 • Type: `{mime_type}`
@@ -249,97 +250,181 @@ async def process_text_messages(client: Client, message: Message):
        await search_and_send_inline(msg,Search_Query)
 import re
 
-def normalize(text):
-    return re.sub(r'[\s_\-]+', '', text.lower().strip())
+import json
+import os
+from datetime import datetime
+from threading import Lock
+from difflib import SequenceMatcher
 
-def tokenize(text):
-    return re.findall(r'\w+', text.lower())
 
-def search_apps_from_json(query):    
-    try:    
-        with file_lock:    
-            with open(APP_DATA_FILE, 'r') as f:    
-                all_apps = json.load(f)    
-    except Exception as e:    
-        print(f"❌ Error reading JSON file: {e}")    
-        return []    
+file_lock = Lock()
 
-    query = query.strip()
-    norm_query = normalize(query)
-    query_tokens = tokenize(query)
+def search_apps_from_json(query):
+    try:
+        with file_lock:
+            if not os.path.exists(APP_DATA_FILE):
+                print("❌ apps_data.json is not available")
+                return []
+            with open(APP_DATA_FILE, 'r', encoding='utf-8') as f:
+                apps = json.load(f)
+    except Exception as e:
+        print(f"❌ Error reading JSON file: {e}")
+        return []
 
-    results = []
+    query = query.strip().lower()
+    if not query:
+        print("❌ Provide a search query")
+        return []
 
-    for app in all_apps:    
-        file_name = app.get("file_name", "")
-        app_lower = file_name.lower()
-        app_norm = normalize(file_name)
-        app_tokens = tokenize(file_name)
+    exact_matches = []
+    substring_matches = []
+    fuzzy_matches = []
 
-        tier = 5
-        score = 0
+    query_no_space = query.replace(" ", "")
 
-        # 1. Exact Match (case-sensitive)
-        if query == file_name:
-            tier = 1
-            score = 100
+    for app in apps:
+        file_name = app.get("file_name", "").lower()
+        file_name_no_space = file_name.replace(" ", "")
 
-        # 2. Exact Match (case-insensitive)
-        elif query.lower() == app_lower:
-            tier = 2
-            score = 90
+        # 1. Exact match (with or without space)
+        if file_name == query or file_name_no_space == query_no_space:
+            app["match_score"] = 100
+            exact_matches.append(app)
+            continue
 
-        # 3. Token matches (case-insensitive)
-        elif any(token in app_tokens for token in query_tokens):
-            tier = 3
-            score = sum(1 for token in query_tokens if token in app_tokens)
+        # 2. Substring match
+        if query in file_name or query_no_space in file_name_no_space:
+            app["match_score"] = 80
+            substring_matches.append(app)
+            continue
 
-        # 4. Normalized match (you tube = youtube)
-        elif norm_query in app_norm:
-            tier = 4
-            score = len(norm_query)
+        # 3. Fuzzy match (similarity > 60%)
+        similarity = SequenceMatcher(None, file_name, query).ratio()
+        percent = similarity * 100
+        if percent > 60:
+            app["match_score"] = int(percent)
+            fuzzy_matches.append(app)
 
-        # 5. Loose fuzzy contains
-        elif any(token in app_norm for token in query_tokens):
-            tier = 5
-            score = sum(1 for token in query_tokens if token in app_norm)
+    # Merge all results
+    final_results = exact_matches + substring_matches + fuzzy_matches
 
-        results.append((tier, -score, file_name.lower(), app))  # Negative score for descending sort
+    # Sort by timestamp (desc), then match_score (desc)
+    def sort_key(app):
+        timestamp = app.get("timestamp", "")
+        try:
+            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except:
+            dt = datetime.min
+        return (-dt.timestamp(), -app.get("match_score", 0))
 
-    # Sort by tier asc, then score desc, then name asc
-    results.sort(key=lambda x: (x[0], x[1], x[2]))
+    final_results.sort(key=sort_key)
 
-    # Return top 50 apps only
-    return [item[3] for item in results[:50]]
-"""
-def search_apps_from_json(query):  
-    try:  
-        with file_lock:  
-            with open(APP_DATA_FILE, 'r') as f:  
-                all_apps = json.load(f)  
-    except Exception as e:  
-        print(f"❌ Error reading JSON file: {e}")  
-        return []  
+    # Return top 50
+    return final_results[:50]
+
+import requests
+import json
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+# 📤 Step 1: Send query to GPT-4 via Pollinations API
+@app.on_callback_query(filters.regex("^pankaj_"))
+async def premiumcall12(client, query: CallbackQuery):
+  await premiumcall12345123(client, query)
   
-    query = query.lower().strip()  
-    results = []  
-  
-    for app in all_apps:  
-        if query in app.get("file_name", "").lower():  
-            results.append(app)  
-  
-    return results  
-  """
-async def search_and_send_inline(msg, search_query, page=1):
+
+async def premiumcall12345123(client, query):
+  if query.data.startswith("pankaj_"):
+        _, page, search_query = query.data.split("_")
+        page = int(page)
+    
+        msg = query.message
+        await search_and_send_inline(msg, search_query, page, is_ai_provided=True)
+        #await search_and_send_inline(msg, search_query, page)  
+def get_ai_queries_with_requests(user_query):
+    url = "https://text.pollinations.ai/openai"
+    headers = {"Content-Type": "application/json"}
+
+    prompt = (
+        "You are an intelligent assistant specialized in correcting and understanding app names. "
+        "Your task is to help users who provide incorrect, misspelled, or vague app names by identifying "
+        "the most likely intended app names.\n\n"
+        "For example, if a user types \"youtueb\" or \"snap edit video\", you should intelligently infer "
+        "that they probably meant apps like \"YouTube\", \"SnapEdit\", \"CapCut\", or \"YouCut\".\n\n"
+        "Your response should be a pure JSON object containing an array of one or more possible corrected or related app names. "
+        "Do not include any explanation, formatting, or extra text. Just return the result as a clean JSON object.\n\n"
+        "Format:\n{\n  \"queries\": [\"corrected_app_name_1\", \"corrected_app_name_2\", ...]\n}\n\n"
+        "Rules:\n"
+        "1. Only return app names that actually exist or are commonly used.\n"
+        "2. Try to keep the most relevant matches at the top of the list.\n"
+        "3. Always respond only in the above JSON format.\n"
+        "4. Keep at least 2 app name in json.\n"
+        "5. If you are unsure, still try to suggest likely matches based on the words provided.\n"
+        "6. Do not include unrelated suggestions or add any commentary or greetings.\n\n"
+        "Your job is purely to assist in app search correction in a minimal and machine-readable way."
+    )
+
+    payload = {
+        "model": "gpt-4",
+        "system": prompt,
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": user_query}]
+            }
+        ]
+    }
+
+    try:
+        res = requests.post(url, headers=headers, data=json.dumps(payload), timeout=10)
+        full_json = res.json()
+
+        # ✅ Extract message content
+        content = full_json["choices"][0]["message"]["content"]
+
+        # 🧠 Try parsing that content into JSON
+        return json.loads(content).get("queries", [])
+
+    except Exception as e:
+        print("❌ AI Response Error:", e)
+        return []
+# ⚙️ Step 2: Main function to call from your Pyrogram handler
+async def ai_query_send(msg, search_query):
+    await msg.edit("🔍 Please wait… AI is searching for your app.")
+
+    ai_queries = get_ai_queries_with_requests(search_query)
+
+    if not ai_queries:
+        await msg.edit("❌ AI couldn't suggest anything. Please try another name.")
+        return
+
+    # 🧠 Show inline buttons
+    buttons = [
+        [InlineKeyboardButton(text=q, callback_data=f"pankaj_1_{q}")]
+        for q in ai_queries
+    ]
+
+    await msg.edit(
+        "Based on AI, your search might match one of these apps:",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+async def search_and_send_inline(msg, search_query, page=1, is_ai_provided=False):
     user_id = msg.chat.id
 
     if user_id not in saveii:
         saveii[user_id] = {}
 
     all_results = search_apps_from_json(search_query)
-    
+    keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("REQUEST AN APP", url="https://t.me/mr_singodiyabot")]
+            ]
+        )
     if not all_results:
-        await msg.edit("No App found")
+      if is_ai_provided:
+        await msg.edit("❌ I couldn't find this app. Please try another app.",reply_markup=keyboard)
+        return
+      else:
+        await ai_query_send(msg, search_query)
         return
 
     saveii[user_id]['page'] = page
@@ -524,6 +609,7 @@ Click on the Below Link:
 @app.on_callback_query(filters.regex("^page_"))
 async def premiumcall12(client, query: CallbackQuery):
   await premiumcall12345(client, query)
+
 async def premiumcall12345(client, query):
   if query.data.startswith("page_"):
         _, page, search_query = query.data.split("_")
