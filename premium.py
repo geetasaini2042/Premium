@@ -536,10 +536,6 @@ Tap the button below to open the app 👇
 def send_document(chat_id,uniq_id, file_id, caption="", protect_content=True, parse_mode="HTML"):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
     user_id = chat_id
-    print(saveii)
-    print(saveii[user_id])
-    search_query = saveii[user_id]['search_query'] 
-    page = saveii[user_id]['page']
     keyboard = {
         "inline_keyboard": [
             [{"text": "🔍Search a App", "callback_data": "123_premium_apps"}],
