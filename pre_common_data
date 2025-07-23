@@ -1,0 +1,3 @@
+import os,json
+
+APP_DATA_FILE = os.path.join(BASE_PATH, "App_data.json")
