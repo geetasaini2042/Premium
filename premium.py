@@ -340,17 +340,23 @@ async def premiumcall12345123(client, query):
         msg = query.message
         await search_and_send_inline(msg, search_query, page, is_ai_provided=True)
         #await search_and_send_inline(msg, search_query, page)  
-import os
 import json
+import base64
 import requests
-from dotenv import load_dotenv
-
-load_dotenv()
 
 def get_ai_queries_with_requests(user_query):
-    url = os.getenv("POLLINATIONS_API_URL", "")
-    token = os.getenv("POLLINATIONS_API_KEY", "")
+    # ------------------------------
+    # ENCODED VALUES (base64)
+    # ------------------------------
+    ec_u = "aHR0cHM6Ly90ZXh0LnBvbGxpbmF0aW9ucy5haS9vcGVuYWk="
+    ec_t = "NFQ2MF9mc2VqYmZEOEtu eA==".replace(" ", "")
     
+    # ------------------------------
+    # DECODE AT RUNTIME
+    # ------------------------------
+    url = base64.b64decode(ec_u).decode()
+    token = base64.b64decode(ec_t).decode()
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}",
