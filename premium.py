@@ -340,9 +340,22 @@ async def premiumcall12345123(client, query):
         msg = query.message
         await search_and_send_inline(msg, search_query, page, is_ai_provided=True)
         #await search_and_send_inline(msg, search_query, page)  
+import os
+import json
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
 def get_ai_queries_with_requests(user_query):
-    url = "https://text.pollinations.ai/openai"
-    headers = {"Content-Type": "application/json"}
+    url = os.getenv("POLLINATIONS_API_URL", "")
+    token = os.getenv("POLLINATIONS_API_KEY", "")
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+        "Referer": "https://singodiya.tech/"
+    }
 
     prompt = (
         "You are an intelligent assistant specialized in correcting and understanding app names. "
@@ -364,7 +377,7 @@ def get_ai_queries_with_requests(user_query):
     )
 
     payload = {
-        "model": "gpt-4",
+        "model": "searchgpt",
         "system": prompt,
         "messages": [
             {
@@ -378,10 +391,8 @@ def get_ai_queries_with_requests(user_query):
         res = requests.post(url, headers=headers, data=json.dumps(payload), timeout=10)
         full_json = res.json()
 
-        # ✅ Extract message content
         content = full_json["choices"][0]["message"]["content"]
 
-        # 🧠 Try parsing that content into JSON
         return json.loads(content).get("queries", [])
 
     except Exception as e:
